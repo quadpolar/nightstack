@@ -194,8 +194,12 @@
   const grab = document.createElement('canvas');
   const gctx = grab.getContext('2d', { willReadFrequently: true });
 
-  const SAMPLE_MS = 400;         // ~2.5 fps sampling
+  const SAMPLE_MS = 130;         // fast sampling feeds the noise smoother
+  const MERGE_EVERY = 3;         // merge smoothed frame into the exposure every 3rd sample
+  const EMA_ALPHA = 0.30;        // frame smoothing strength (lower = smoother)
   const MAX_W = 1600;            // processing resolution cap
+  let ema = null;                // running smoothed frame (noise reduction)
+  let tick = 0;
 
   boost.addEventListener('input', () => {
     boostVal.textContent = boost.value + '×';
@@ -252,6 +256,8 @@
     canvas.width = W; canvas.height = H;
     acc = new Float32Array(W * H * 3);
     if (mode === 'trails') acc.fill(0);
+    ema = null;
+    tick = 0;
     frames = 0;
   }
 
@@ -260,19 +266,34 @@
     gctx.drawImage(video, 0, 0, W, H);
     const px = gctx.getImageData(0, 0, W, H).data;
     const n = W * H;
-    if (mode === 'trails') {
+
+    // Smooth incoming frames to knock down sensor grain before blending
+    if (!ema) {
+      ema = new Float32Array(n * 3);
       for (let i = 0, j = 0; i < n; i++, j += 4) {
         const k = i * 3;
-        if (px[j]   > acc[k])   acc[k]   = px[j];
-        if (px[j+1] > acc[k+1]) acc[k+1] = px[j+1];
-        if (px[j+2] > acc[k+2]) acc[k+2] = px[j+2];
+        ema[k] = px[j]; ema[k+1] = px[j+1]; ema[k+2] = px[j+2];
       }
     } else {
+      const a = EMA_ALPHA, b = 1 - EMA_ALPHA;
       for (let i = 0, j = 0; i < n; i++, j += 4) {
         const k = i * 3;
-        acc[k]   += px[j];
-        acc[k+1] += px[j+1];
-        acc[k+2] += px[j+2];
+        ema[k]   = ema[k]   * b + px[j]   * a;
+        ema[k+1] = ema[k+1] * b + px[j+1] * a;
+        ema[k+2] = ema[k+2] * b + px[j+2] * a;
+      }
+    }
+
+    tick++;
+    if (tick % MERGE_EVERY !== 0) return;
+
+    if (mode === 'trails') {
+      for (let k = 0, m = n * 3; k < m; k++) {
+        if (ema[k] > acc[k]) acc[k] = ema[k];
+      }
+    } else {
+      for (let k = 0, m = n * 3; k < m; k++) {
+        acc[k] += ema[k];
       }
     }
     frames++;
@@ -286,11 +307,18 @@
     const n = W * H;
     const g = parseFloat(boost.value);
     const div = mode === 'stack' ? frames : 1;
+    // Gain plus a gentle shadow-lift curve: brightens faint stars
+    // without blowing out the bright ones
+    const lut = new Uint8ClampedArray(256);
+    for (let v = 0; v < 256; v++) {
+      const x = Math.min(1, (v / 255) * g);
+      lut[v] = Math.round(255 * Math.pow(x, 0.75));
+    }
     for (let i = 0, j = 0; i < n; i++, j += 4) {
       const k = i * 3;
-      d[j]   = Math.min(255, (acc[k]   / div) * g);
-      d[j+1] = Math.min(255, (acc[k+1] / div) * g);
-      d[j+2] = Math.min(255, (acc[k+2] / div) * g);
+      d[j]   = lut[Math.min(255, acc[k]   / div) | 0];
+      d[j+1] = lut[Math.min(255, acc[k+1] / div) | 0];
+      d[j+2] = lut[Math.min(255, acc[k+2] / div) | 0];
       d[j+3] = 255;
     }
     ctx.putImageData(out, 0, 0);
