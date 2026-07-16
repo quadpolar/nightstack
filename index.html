@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#000000">
+<title>NightStack</title>
+<style>
+  :root{
+    --red:#c8321e;
+    --red-dim:#7a2013;
+    --red-faint:#3a140d;
+    --ink:#0a0a0a;
+    --text:#d9482f;
+    --text-dim:#8f321f;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{height:100%;background:#000;overflow:hidden;overscroll-behavior:none;}
+  body{
+    font-family:ui-monospace,'SF Mono',Menlo,monospace;
+    color:var(--text);
+    display:flex;flex-direction:column;
+    padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+    user-select:none;-webkit-user-select:none;
+  }
+
+  header{
+    display:flex;justify-content:space-between;align-items:baseline;
+    padding:14px 16px 10px;
+  }
+  header h1{font-size:13px;font-weight:600;letter-spacing:.25em;}
+  header .status{font-size:11px;color:var(--red-dim);letter-spacing:.08em;}
+
+  #stage{
+    position:relative;flex:1;min-height:0;
+    background:#000;
+    border-top:1px solid var(--red-faint);
+    border-bottom:1px solid var(--red-faint);
+  }
+  #stage video,#stage canvas{
+    position:absolute;inset:0;width:100%;height:100%;object-fit:contain;
+  }
+  #liveVideo{opacity:1;transition:opacity .4s;}
+  #liveVideo.hidden{opacity:0;}
+  #previewCanvas{display:none;}
+  #previewCanvas.show{display:block;}
+
+  #hud{
+    position:absolute;top:10px;left:12px;right:12px;
+    display:flex;justify-content:space-between;
+    font-size:12px;letter-spacing:.08em;
+    pointer-events:none;
+    text-shadow:0 0 6px #000;
+  }
+  #recDot{
+    display:inline-block;width:8px;height:8px;border-radius:50%;
+    background:var(--red);margin-right:6px;vertical-align:1px;
+    animation:blink 1.6s steps(2) infinite;
+  }
+  @keyframes blink{50%{opacity:.15;}}
+  @media (prefers-reduced-motion:reduce){#recDot{animation:none;}}
+
+  #startOverlay{
+    position:absolute;inset:0;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;gap:18px;
+    background:#000;z-index:5;text-align:center;padding:24px;
+  }
+  #startOverlay p{font-size:12px;line-height:1.7;color:var(--red-dim);max-width:300px;}
+
+  #controls{padding:12px 16px calc(12px + env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:12px;}
+
+  .row{display:flex;gap:10px;align-items:center;}
+
+  .seg{display:flex;flex:1;border:1px solid var(--red-dim);border-radius:6px;overflow:hidden;}
+  .seg button{
+    flex:1;padding:10px 0;font-size:12px;letter-spacing:.1em;
+    background:transparent;color:var(--red-dim);border:0;
+    font-family:inherit;
+  }
+  .seg button.on{background:var(--red-faint);color:var(--text);}
+
+  .slider-row{display:flex;align-items:center;gap:12px;font-size:11px;letter-spacing:.08em;}
+  .slider-row label{width:52px;color:var(--red-dim);}
+  .slider-row output{width:44px;text-align:right;}
+  input[type=range]{
+    flex:1;appearance:none;-webkit-appearance:none;height:2px;background:var(--red-faint);border-radius:2px;
+  }
+  input[type=range]::-webkit-slider-thumb{
+    -webkit-appearance:none;width:22px;height:22px;border-radius:50%;
+    background:#000;border:1.5px solid var(--red);
+  }
+
+  .btn{
+    font-family:inherit;font-size:13px;letter-spacing:.15em;
+    padding:15px 0;border-radius:8px;border:1px solid var(--red);
+    background:transparent;color:var(--text);width:100%;
+  }
+  .btn:active{background:var(--red-faint);}
+  .btn.primary{background:var(--red-faint);}
+  .btn.danger{border-color:var(--red);color:#ff6a4d;}
+  .btn[disabled]{opacity:.3;}
+  .btn:focus-visible{outline:2px solid var(--red);outline-offset:2px;}
+
+  .btnrow{display:flex;gap:10px;}
+  .btnrow .btn{flex:1;}
+
+  #note{font-size:10px;color:var(--red-dim);line-height:1.6;letter-spacing:.04em;}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>NIGHTSTACK</h1>
+  <div class="status" id="statusText">idle</div>
+</header>
+
+<div id="stage">
+  <video id="liveVideo" playsinline muted autoplay></video>
+  <canvas id="previewCanvas"></canvas>
+  <div id="hud" hidden>
+    <span><span id="recDot"></span><span id="elapsed">00:00</span></span>
+    <span id="frameCount">0 frames</span>
+  </div>
+  <div id="startOverlay">
+    <p>Simulated long exposure by frame stacking. Brace the phone against something solid — any movement ruins the shot. Dim your screen to protect night vision.</p>
+    <button class="btn primary" id="camBtn" style="max-width:260px">OPEN CAMERA</button>
+    <p id="errMsg" style="color:#ff6a4d"></p>
+  </div>
+</div>
+
+<div id="controls">
+  <div class="seg" role="group" aria-label="Mode">
+    <button id="modeTrails" class="on">STAR TRAILS</button>
+    <button id="modeStack">STACK + BRIGHTEN</button>
+  </div>
+
+  <div class="slider-row">
+    <label for="boost">BOOST</label>
+    <input type="range" id="boost" min="1" max="8" step="0.5" value="2.5">
+    <output id="boostVal">2.5×</output>
+  </div>
+
+  <div class="btnrow">
+    <button class="btn primary" id="startBtn" disabled>START EXPOSURE</button>
+    <button class="btn" id="saveBtn" disabled>SAVE</button>
+  </div>
+
+  <div id="note">Trails: keeps the brightest value per pixel — arcs build over minutes. Stack: averages frames to cut noise, then multiplies by boost. Run 2–20 min. Screen stays awake while exposing.</div>
+</div>
+
+<script>
+(() => {
+  const video = document.getElementById('liveVideo');
+  const canvas = document.getElementById('previewCanvas');
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  const overlay = document.getElementById('startOverlay');
+  const errMsg = document.getElementById('errMsg');
+  const statusText = document.getElementById('statusText');
+  const hud = document.getElementById('hud');
+  const elapsedEl = document.getElementById('elapsed');
+  const frameEl = document.getElementById('frameCount');
+  const camBtn = document.getElementById('camBtn');
+  const startBtn = document.getElementById('startBtn');
+  const saveBtn = document.getElementById('saveBtn');
+  const modeTrails = document.getElementById('modeTrails');
+  const modeStack = document.getElementById('modeStack');
+  const boost = document.getElementById('boost');
+  const boostVal = document.getElementById('boostVal');
+
+  let stream = null;
+  let mode = 'trails';           // 'trails' | 'stack'
+  let running = false;
+  let acc = null;                // Float32Array accumulator
+  let W = 0, H = 0;
+  let frames = 0;
+  let startTime = 0;
+  let sampleTimer = null;
+  let hudTimer = null;
+  let wakeLock = null;
+
+  const grab = document.createElement('canvas');
+  const gctx = grab.getContext('2d', { willReadFrequently: true });
+
+  const SAMPLE_MS = 400;         // ~2.5 fps sampling
+  const MAX_W = 1600;            // processing resolution cap
+
+  boost.addEventListener('input', () => {
+    boostVal.textContent = boost.value + '×';
+    if (!running && frames > 0) render();
+  });
+
+  function setMode(m) {
+    if (running) return;
+    mode = m;
+    modeTrails.classList.toggle('on', m === 'trails');
+    modeStack.classList.toggle('on', m === 'stack');
+  }
+  modeTrails.onclick = () => setMode('trails');
+  modeStack.onclick = () => setMode('stack');
+
+  camBtn.onclick = async () => {
+    errMsg.textContent = '';
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: { ideal: 'environment' },
+          width: { ideal: 3840 },
+          height: { ideal: 2160 },
+          frameRate: { ideal: 30 }
+        },
+        audio: false
+      });
+      video.srcObject = stream;
+      await video.play();
+
+      // Best-effort low-light hints; most are ignored on iOS Safari.
+      const track = stream.getVideoTracks()[0];
+      const caps = track.getCapabilities ? track.getCapabilities() : {};
+      const adv = [];
+      if (caps.exposureMode && caps.exposureMode.includes('continuous')) adv.push({ exposureMode: 'continuous' });
+      if (caps.exposureCompensation) adv.push({ exposureCompensation: caps.exposureCompensation.max });
+      if (caps.iso) adv.push({ iso: caps.iso.max });
+      if (adv.length) { try { await track.applyConstraints({ advanced: adv }); } catch (e) {} }
+
+      overlay.style.display = 'none';
+      startBtn.disabled = false;
+      statusText.textContent = 'live';
+    } catch (e) {
+      errMsg.textContent = 'Camera blocked: ' + e.message;
+    }
+  };
+
+  function initAccumulator() {
+    const vw = video.videoWidth, vh = video.videoHeight;
+    const scale = Math.min(1, MAX_W / vw);
+    W = Math.round(vw * scale);
+    H = Math.round(vh * scale);
+    grab.width = W; grab.height = H;
+    canvas.width = W; canvas.height = H;
+    acc = new Float32Array(W * H * 3);
+    if (mode === 'trails') acc.fill(0);
+    frames = 0;
+  }
+
+  function sample() {
+    if (!running) return;
+    gctx.drawImage(video, 0, 0, W, H);
+    const px = gctx.getImageData(0, 0, W, H).data;
+    const n = W * H;
+    if (mode === 'trails') {
+      for (let i = 0, j = 0; i < n; i++, j += 4) {
+        const k = i * 3;
+        if (px[j]   > acc[k])   acc[k]   = px[j];
+        if (px[j+1] > acc[k+1]) acc[k+1] = px[j+1];
+        if (px[j+2] > acc[k+2]) acc[k+2] = px[j+2];
+      }
+    } else {
+      for (let i = 0, j = 0; i < n; i++, j += 4) {
+        const k = i * 3;
+        acc[k]   += px[j];
+        acc[k+1] += px[j+1];
+        acc[k+2] += px[j+2];
+      }
+    }
+    frames++;
+    if (frames % 3 === 0) render();
+  }
+
+  function render() {
+    if (!acc || frames === 0) return;
+    const out = ctx.createImageData(W, H);
+    const d = out.data;
+    const n = W * H;
+    const g = parseFloat(boost.value);
+    const div = mode === 'stack' ? frames : 1;
+    for (let i = 0, j = 0; i < n; i++, j += 4) {
+      const k = i * 3;
+      d[j]   = Math.min(255, (acc[k]   / div) * g);
+      d[j+1] = Math.min(255, (acc[k+1] / div) * g);
+      d[j+2] = Math.min(255, (acc[k+2] / div) * g);
+      d[j+3] = 255;
+    }
+    ctx.putImageData(out, 0, 0);
+  }
+
+  function fmt(s) {
+    const m = Math.floor(s / 60), r = Math.floor(s % 60);
+    return String(m).padStart(2,'0') + ':' + String(r).padStart(2,'0');
+  }
+
+  async function requestWake() {
+    try { wakeLock = await navigator.wakeLock.request('screen'); } catch (e) {}
+  }
+  document.addEventListener('visibilitychange', () => {
+    if (running && document.visibilityState === 'visible') requestWake();
+  });
+
+  startBtn.onclick = async () => {
+    if (!running) {
+      initAccumulator();
+      running = true;
+      startTime = Date.now();
+      startBtn.textContent = 'STOP EXPOSURE';
+      startBtn.classList.remove('primary');
+      startBtn.classList.add('danger');
+      saveBtn.disabled = true;
+      hud.hidden = false;
+      statusText.textContent = mode === 'trails' ? 'exposing · trails' : 'exposing · stack';
+      video.classList.add('hidden');
+      canvas.classList.add('show');
+      await requestWake();
+      // 2s settle delay so the tap doesn't shake the frame
+      setTimeout(() => {
+        if (!running) return;
+        sampleTimer = setInterval(sample, SAMPLE_MS);
+      }, 2000);
+      hudTimer = setInterval(() => {
+        elapsedEl.textContent = fmt((Date.now() - startTime) / 1000);
+        frameEl.textContent = frames + ' frames';
+      }, 500);
+    } else {
+      running = false;
+      clearInterval(sampleTimer);
+      clearInterval(hudTimer);
+      if (wakeLock) { try { wakeLock.release(); } catch(e){} wakeLock = null; }
+      render();
+      startBtn.textContent = 'START EXPOSURE';
+      startBtn.classList.add('primary');
+      startBtn.classList.remove('danger');
+      saveBtn.disabled = frames === 0;
+      statusText.textContent = 'done · ' + frames + ' frames';
+    }
+  };
+
+  saveBtn.onclick = () => {
+    render();
+    canvas.toBlob(blob => {
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      const stamp = new Date().toISOString().replace(/[:T]/g,'-').slice(0,19);
+      a.download = 'nightstack-' + mode + '-' + stamp + '.png';
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+    }, 'image/png');
+  };
+
+  // Return to live view when tapping the stage while idle
+  document.getElementById('stage').addEventListener('click', () => {
+    if (!running && stream) {
+      video.classList.remove('hidden');
+      canvas.classList.remove('show');
+      hud.hidden = true;
+    }
+  });
+
+  // Offline support if sw.js is deployed alongside this file
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('./sw.js').catch(() => {});
+  }
+})();
+</script>
+</body>
+</html>
