@@ -5,21 +5,23 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="theme-color" content="#000000">
+<meta name="theme-color" content="#16181d">
 <title>NightStack</title>
 <style>
   :root{
-    --red:#c8321e;
-    --red-dim:#7a2013;
-    --red-faint:#3a140d;
-    --ink:#0a0a0a;
-    --text:#d9482f;
-    --text-dim:#8f321f;
+    --bg:#16181d;
+    --panel:#22252c;
+    --panel2:#2c3038;
+    --text:#f2efe9;
+    --text-soft:#a9adb6;
+    --amber:#ffb454;
+    --amber-deep:#c47d1e;
+    --stop:#ff6b5e;
   }
   *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
-  html,body{height:100%;background:#000;overflow:hidden;overscroll-behavior:none;}
+  html,body{height:100%;background:var(--bg);overflow:hidden;overscroll-behavior:none;}
   body{
-    font-family:ui-monospace,'SF Mono',Menlo,monospace;
+    font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text',system-ui,sans-serif;
     color:var(--text);
     display:flex;flex-direction:column;
     padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
@@ -27,93 +29,101 @@
   }
 
   header{
-    display:flex;justify-content:space-between;align-items:baseline;
-    padding:14px 16px 10px;
+    display:flex;justify-content:space-between;align-items:center;
+    padding:16px 18px 12px;
   }
-  header h1{font-size:13px;font-weight:600;letter-spacing:.25em;}
-  header .status{font-size:11px;color:var(--red-dim);letter-spacing:.08em;}
+  header h1{font-size:19px;font-weight:700;}
+  header h1 span{color:var(--amber);}
+  header .status{
+    font-size:14px;color:var(--text-soft);font-weight:500;
+    background:var(--panel);padding:5px 12px;border-radius:99px;
+  }
 
   #stage{
     position:relative;flex:1;min-height:0;
     background:#000;
-    border-top:1px solid var(--red-faint);
-    border-bottom:1px solid var(--red-faint);
+    border-radius:16px;
+    margin:0 12px;
+    overflow:hidden;
   }
   #stage video,#stage canvas{
     position:absolute;inset:0;width:100%;height:100%;object-fit:contain;
   }
-  #liveVideo{opacity:1;transition:opacity .4s;}
   #liveVideo.hidden{opacity:0;}
   #previewCanvas{display:none;}
   #previewCanvas.show{display:block;}
 
   #hud{
-    position:absolute;top:10px;left:12px;right:12px;
+    position:absolute;top:12px;left:12px;right:12px;
     display:flex;justify-content:space-between;
-    font-size:12px;letter-spacing:.08em;
+    font-size:16px;font-weight:600;
     pointer-events:none;
-    text-shadow:0 0 6px #000;
+    text-shadow:0 1px 4px rgba(0,0,0,.9);
   }
   #recDot{
-    display:inline-block;width:8px;height:8px;border-radius:50%;
-    background:var(--red);margin-right:6px;vertical-align:1px;
+    display:inline-block;width:10px;height:10px;border-radius:50%;
+    background:var(--stop);margin-right:8px;
     animation:blink 1.6s steps(2) infinite;
   }
-  @keyframes blink{50%{opacity:.15;}}
+  @keyframes blink{50%{opacity:.2;}}
   @media (prefers-reduced-motion:reduce){#recDot{animation:none;}}
 
   #startOverlay{
     position:absolute;inset:0;display:flex;flex-direction:column;
-    align-items:center;justify-content:center;gap:18px;
-    background:#000;z-index:5;text-align:center;padding:24px;
+    align-items:center;justify-content:center;gap:20px;
+    background:var(--bg);z-index:5;text-align:center;padding:28px;
   }
-  #startOverlay p{font-size:12px;line-height:1.7;color:var(--red-dim);max-width:300px;}
+  #startOverlay .stars{font-size:34px;}
+  #startOverlay p{font-size:15px;line-height:1.65;color:var(--text-soft);max-width:320px;}
+  #errMsg{color:var(--stop);font-size:14px;}
 
-  #controls{padding:12px 16px calc(12px + env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:12px;}
+  #controls{padding:14px 12px calc(14px + env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:14px;}
 
-  .row{display:flex;gap:10px;align-items:center;}
-
-  .seg{display:flex;flex:1;border:1px solid var(--red-dim);border-radius:6px;overflow:hidden;}
+  .seg{display:flex;background:var(--panel);border-radius:12px;padding:4px;gap:4px;}
   .seg button{
-    flex:1;padding:10px 0;font-size:12px;letter-spacing:.1em;
-    background:transparent;color:var(--red-dim);border:0;
+    flex:1;padding:12px 0;font-size:15px;font-weight:600;
+    background:transparent;color:var(--text-soft);border:0;border-radius:9px;
     font-family:inherit;
   }
-  .seg button.on{background:var(--red-faint);color:var(--text);}
+  .seg button.on{background:var(--panel2);color:var(--amber);}
 
-  .slider-row{display:flex;align-items:center;gap:12px;font-size:11px;letter-spacing:.08em;}
-  .slider-row label{width:52px;color:var(--red-dim);}
-  .slider-row output{width:44px;text-align:right;}
+  .slider-row{
+    display:flex;align-items:center;gap:14px;
+    background:var(--panel);border-radius:12px;padding:12px 16px;
+    font-size:15px;font-weight:500;
+  }
+  .slider-row label{color:var(--text-soft);}
+  .slider-row output{min-width:48px;text-align:right;color:var(--amber);font-weight:600;font-variant-numeric:tabular-nums;}
   input[type=range]{
-    flex:1;appearance:none;-webkit-appearance:none;height:2px;background:var(--red-faint);border-radius:2px;
+    flex:1;appearance:none;-webkit-appearance:none;height:4px;background:var(--panel2);border-radius:4px;
   }
   input[type=range]::-webkit-slider-thumb{
-    -webkit-appearance:none;width:22px;height:22px;border-radius:50%;
-    background:#000;border:1.5px solid var(--red);
+    -webkit-appearance:none;width:26px;height:26px;border-radius:50%;
+    background:var(--amber);border:none;
   }
 
   .btn{
-    font-family:inherit;font-size:13px;letter-spacing:.15em;
-    padding:15px 0;border-radius:8px;border:1px solid var(--red);
-    background:transparent;color:var(--text);width:100%;
+    font-family:inherit;font-size:17px;font-weight:700;
+    padding:17px 0;border-radius:14px;border:none;
+    background:var(--panel);color:var(--text);width:100%;
   }
-  .btn:active{background:var(--red-faint);}
-  .btn.primary{background:var(--red-faint);}
-  .btn.danger{border-color:var(--red);color:#ff6a4d;}
-  .btn[disabled]{opacity:.3;}
-  .btn:focus-visible{outline:2px solid var(--red);outline-offset:2px;}
+  .btn:active{filter:brightness(1.15);}
+  .btn.primary{background:var(--amber);color:#1a1204;}
+  .btn.danger{background:var(--stop);color:#2a0a06;}
+  .btn[disabled]{opacity:.35;}
+  .btn:focus-visible{outline:3px solid var(--amber);outline-offset:2px;}
 
   .btnrow{display:flex;gap:10px;}
   .btnrow .btn{flex:1;}
 
-  #note{font-size:10px;color:var(--red-dim);line-height:1.6;letter-spacing:.04em;}
+  #note{font-size:13px;color:var(--text-soft);line-height:1.6;padding:0 4px;}
 </style>
 </head>
 <body>
 
 <header>
-  <h1>NIGHTSTACK</h1>
-  <div class="status" id="statusText">idle</div>
+  <h1>Night<span>Stack</span></h1>
+  <div class="status" id="statusText">Ready</div>
 </header>
 
 <div id="stage">
@@ -124,30 +134,31 @@
     <span id="frameCount">0 frames</span>
   </div>
   <div id="startOverlay">
-    <p>Simulated long exposure by frame stacking. Brace the phone against something solid — any movement ruins the shot. Dim your screen to protect night vision.</p>
-    <button class="btn primary" id="camBtn" style="max-width:260px">OPEN CAMERA</button>
-    <p id="errMsg" style="color:#ff6a4d"></p>
+    <div class="stars">✦ ✧ ✦</div>
+    <p>Builds a long exposure of the night sky by stacking frames over time. Prop your phone against something solid — it has to stay perfectly still.</p>
+    <button class="btn primary" id="camBtn" style="max-width:280px">Open camera</button>
+    <p id="errMsg"></p>
   </div>
 </div>
 
 <div id="controls">
   <div class="seg" role="group" aria-label="Mode">
-    <button id="modeTrails" class="on">STAR TRAILS</button>
-    <button id="modeStack">STACK + BRIGHTEN</button>
+    <button id="modeTrails" class="on">Star trails</button>
+    <button id="modeStack">Brighten</button>
   </div>
 
   <div class="slider-row">
-    <label for="boost">BOOST</label>
+    <label for="boost">Boost</label>
     <input type="range" id="boost" min="1" max="8" step="0.5" value="2.5">
     <output id="boostVal">2.5×</output>
   </div>
 
   <div class="btnrow">
-    <button class="btn primary" id="startBtn" disabled>START EXPOSURE</button>
-    <button class="btn" id="saveBtn" disabled>SAVE</button>
+    <button class="btn primary" id="startBtn" disabled>Start exposure</button>
+    <button class="btn" id="saveBtn" disabled>Save</button>
   </div>
 
-  <div id="note">Trails: keeps the brightest value per pixel — arcs build over minutes. Stack: averages frames to cut noise, then multiplies by boost. Run 2–20 min. Screen stays awake while exposing.</div>
+  <div id="note"><b style="color:var(--text)">Star trails</b> keeps the brightest light in each spot — stars draw arcs over 5–20 minutes. <b style="color:var(--text)">Brighten</b> averages frames to clean up noise and lift the whole scene. The screen stays awake while exposing.</div>
 </div>
 
 <script>
@@ -226,7 +237,7 @@
 
       overlay.style.display = 'none';
       startBtn.disabled = false;
-      statusText.textContent = 'live';
+      statusText.textContent = 'Live';
     } catch (e) {
       errMsg.textContent = 'Camera blocked: ' + e.message;
     }
@@ -302,12 +313,12 @@
       initAccumulator();
       running = true;
       startTime = Date.now();
-      startBtn.textContent = 'STOP EXPOSURE';
+      startBtn.textContent = 'Stop exposure';
       startBtn.classList.remove('primary');
       startBtn.classList.add('danger');
       saveBtn.disabled = true;
       hud.hidden = false;
-      statusText.textContent = mode === 'trails' ? 'exposing · trails' : 'exposing · stack';
+      statusText.textContent = mode === 'trails' ? 'Exposing · trails' : 'Exposing · brighten';
       video.classList.add('hidden');
       canvas.classList.add('show');
       await requestWake();
@@ -326,11 +337,11 @@
       clearInterval(hudTimer);
       if (wakeLock) { try { wakeLock.release(); } catch(e){} wakeLock = null; }
       render();
-      startBtn.textContent = 'START EXPOSURE';
+      startBtn.textContent = 'Start exposure';
       startBtn.classList.add('primary');
       startBtn.classList.remove('danger');
       saveBtn.disabled = frames === 0;
-      statusText.textContent = 'done · ' + frames + ' frames';
+      statusText.textContent = 'Done · ' + frames + ' frames';
     }
   };
 

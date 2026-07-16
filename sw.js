@@ -1,4 +1,4 @@
-const CACHE = 'nightstack-v1';
+const CACHE = 'nightstack-v2';
 const ASSETS = ['./', './index.html'];
 
 self.addEventListener('install', e => {
